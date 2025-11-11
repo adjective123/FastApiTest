@@ -1,6 +1,7 @@
 # model.py
 from pathlib import Path
 from typing import Optional, Dict, Any
+from audioStream import audio2text  # ✅ 당신의 모델 import
 
 import test  # ← 패스스루 모듈
 
@@ -11,7 +12,8 @@ def run_model(user_text: Optional[str], audio_path: Optional[str]) -> Dict[str, 
     """
 
     # 1) test.py에 위임
-    inputs = test.passthrough(user_text=user_text, audio_path=audio_path)
+    with open(audio_path, "rb") as audio_file:
+        inputs = audio2text(mode="file", wavefile=audio_file)
     user_text = inputs.get("user_text")
     audio_path = inputs.get("audio_path")
 
