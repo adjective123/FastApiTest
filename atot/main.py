@@ -9,6 +9,9 @@ import os
 from typing import Optional
 import model
 
+# ✅ 당신의 audioStream 모듈 import
+from audioStream import audio2text
+
 app = FastAPI()
 
 # 정적 파일 및 템플릿 경로 설정
@@ -94,8 +97,7 @@ async def run_model_endpoint(
             latest = get_latest_audio_path()
             if not latest:
                 return JSONResponse({"ok": False, "error": "오디오가 없습니다."}, status_code=400)
-            result = model.run_model(user_text=None, audio_path=str(latest))
-            return JSONResponse({"ok": True, "picked": {"picked": "audio"}, "result": result})
+            result = model.run_modelaudio2text(mode="file", wavefile=str(latest))            return JSONResponse({"ok": True, "picked": {"picked": "audio"}, "result": result})
 
         # mode == "text"
         text = (user_input or "").strip()
