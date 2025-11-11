@@ -18,7 +18,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import sounddevice as sd
 
-client = OpenAI(api_key="input your openai api key")
+client = OpenAI(api_key="")
 
 @dataclass
 class audioArgs:
@@ -52,6 +52,15 @@ class AudioStream:
             print("오디오 스트림 시작됨")
         else:
             print("스트림이 초기화되지 않았습니다. 먼저 init_stream()을 호출하세요.")
+
+    def stop_stream(self):
+        if self.stream is not None:
+            self.stream.stop()
+            self.stream.close()
+            self.stream = None
+            print("오디오 스트림 종료됨")
+        else:
+            print("종료할 스트림이 없습니다.")
 
     def process_audio_batch(self,target = audioArgs.batch_size):
         chunks = []
@@ -124,8 +133,8 @@ class AudioActivityDetection:
 
         return None
 
-if __name__ == '__main__':
-
+def listen_and_transcribe():
+    """음성을 수집하고 텍스트로 변환하는 함수"""
     model = load_silero_vad()
     
     stream = AudioStream()
@@ -133,7 +142,7 @@ if __name__ == '__main__':
     stream.start_stream()
     event_checker = AudioActivityDetection()
 
-    print("스트림 시작됨")
+    print("스트림 시작됨 - 말씀해주세요")
 
     while True:
         audio_data = stream.process_audio_batch(target=audioArgs.batch_size)
@@ -158,11 +167,20 @@ if __name__ == '__main__':
                     response = client.audio.transcriptions.create(
                         model="whisper-1",
                         file=audio_file,
-                        language="ko"  # 한국어면 이거
+                        language="ko"
                     )
 
-                print(response.text)
+                transcript_text = response.text
+                print(f"변환된 텍스트: {transcript_text}")
+                
+                # 스트림 멈추고 텍스트 반환
+                stream.stop_stream()
+                return transcript_text
 
         else:
             print("배치 수집 실패")
             time.sleep(0.1)
+
+if __name__ == '__main__':
+    text = listen_and_transcribe()
+    print(f"\n최종 결과: {text}")
