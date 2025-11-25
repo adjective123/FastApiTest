@@ -1,0 +1,706 @@
+/* ==============================
+   기본 리셋 & 변수
+   ============================== */
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; height: 100%; }
+
+:root{
+  --bg:#0f1115;
+  --panel:#D8E2FF;
+  --text:#000000;
+  --muted:#8b93a6;
+  --accent:#3a7bfd;
+  --border:#232838;
+  --btnbg:#3DA5EB;
+  --intext:#FFFFFF;
+}
+
+body{
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+  display: flex;
+  justify-content: center;
+  align-items: stretch;
+}
+
+/* ==============================
+   '폰 화면' 컨테이너
+   (홈 + 채팅 화면이 이 안에 겹쳐짐)
+   ============================== */
+#phone{
+  position: relative;
+  width: 100%;
+  max-width: 420px;
+  height: 100vh;              /* 브라우저 높이 꽉 채우기 */
+  background: var(--panel);
+  border-left: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  overflow: hidden;           /* 내부 스크롤 튀어나오는 것 방지 */
+}
+
+/* 큰 화면에서도 중앙에 둥글게 */
+@media (min-width: 768px){
+  #phone{
+    margin: 24px auto;
+    border-radius: 16px;
+    overflow: hidden;
+  }
+}
+
+/* 화면(페이지) 공통: 홈/채팅 각각 한 화면 */
+.screen-page{
+  position: absolute;
+  inset: 0;                   /* top:0; right:0; bottom:0; left:0; */
+  display: flex;
+  flex-direction: column;
+}
+
+/* 공통 숨김 클래스 */
+.hidden{
+  display: none !important;
+}
+
+/* ==============================
+   홈 화면 (#homeScreen)
+   ============================== */
+#homeScreen{
+  width: 100%;
+  height: 100%;
+}
+
+/* 홈 헤더 */
+#homeHeader{
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+#homeTitle{
+  font-size: 18px;
+  font-weight: 700;
+  color: #111521;
+}
+
+/* 홈 메인 영역 (채팅 리스트) */
+#homeMain{
+  flex: 1;
+  padding: 8px 0;
+  overflow-y: auto;
+}
+
+/* 채팅 리스트 아이템 공통 */
+.chatListItem{
+  width: 100%;
+  border: none;
+  background: transparent;
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.chatListItem + .chatListItem{
+  border-top: 1px solid rgba(0,0,0,0.05);
+}
+
+/* 새 채팅 전용 스타일 */
+.chatListItem.newChat{
+  background: rgba(255,255,255,0.7);
+}
+
+.chatListItem.newChat:active{
+  background: rgba(255,255,255,0.9);
+}
+
+/* 아바타/아이콘 원형 */
+.chatAvatar{
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--btnbg);
+  color: var(--intext);
+  font-size: 20px;
+  font-weight: 700;
+}
+
+/* 텍스트 영역 */
+.chatText{
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.chatTitle{
+  font-size: 15px;
+  font-weight: 600;
+  color: #111521;
+}
+
+.chatSubtitle{
+  font-size: 12px;
+  color: #555;
+}
+
+/* ==============================
+   채팅 화면 (#app)
+   ============================== */
+#app{
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 상단바 */
+#topBar{
+  display: grid;
+  grid-template-columns: 56px 1fr 56px; /* 좌 버튼 / 가운데 텍스트 / 우 버튼 */
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+}
+
+/* 왼쪽 아이콘 버튼 */
+#leftControls {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  height: 40px;
+}
+
+#subiconBtn {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--btnbg);
+  padding: 0;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+#subiconBtn:active {
+  transform: scale(0.97);
+}
+
+#subiconImage {
+  width: 28px;
+  height: 28px;
+  object-fit: cover;
+  border-radius: 6px;
+}
+
+/* 가운데 디스플레이 */
+#titleArea{
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+}
+#textDisplay{
+  max-width: 100%;
+  padding: 8px 10px;
+  text-align: center;
+  font-weight: 600;
+  border-radius: 10px;
+  color: var(--text);
+  outline: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  user-select: none;
+  pointer-events: none;
+}
+
+/* 오른쪽 설정 버튼 */
+#rightControls{
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  height: 40px;
+}
+#settingsBtn{
+  width: 40px; height: 40px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--btnbg);
+  cursor: pointer;
+  padding: 0;
+  display: grid;
+  place-items: center;
+}
+#settingsBtn:active{ transform: scale(0.98); }
+
+/* 햄버거 아이콘 */
+#settingsIcon{
+  position: relative;
+  width: 18px; height: 2px;
+  background: var(--text);
+  border-radius: 2px;
+  display: block;
+}
+#settingsIcon::before,
+#settingsIcon::after{
+  content: "";
+  position: absolute;
+  left: 0; right: 0;
+  height: 2px;
+  background: var(--text);
+  border-radius: 2px;
+}
+#settingsIcon::before{ top: -6px; }
+#settingsIcon::after { top:  6px; }
+
+/* 메인 화면 */
+#mainScreen{
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;   /* 기본: 정가운데 */
+  padding: 14px 12px;
+  overflow: hidden;
+  gap: 8px;
+}
+
+/* 채팅 로그가 보일 때는 위쪽으로 붙이기 */
+#mainScreen.with-chat{
+  justify-content: flex-start;
+}
+
+#mainImage{
+  max-width: min(86%, 320px);
+  max-height: 56vh;
+  object-fit: contain;
+  border-radius: 14px;
+  background: var(--panel);
+  display: block;
+}
+
+/* 하단 입력 */
+#bottomInput{
+  border-top: 1px solid var(--border);
+  padding: 10px 12px;
+}
+#userTextInput{
+  width: 100%;
+  height: 44px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: #111521;
+  color: var(--intext);
+  padding: 0 12px;
+  outline: none;
+  caret-color: var(--accent);
+}
+#userTextInput::placeholder{ color: var(--muted); }
+#userTextInput:focus{
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent);
+}
+
+/* 입력 시 하단 튐 방지용 여유 (iOS 등) */
+@supports (padding: max(0px)){
+  #bottomInput{ padding-bottom: max(10px, env(safe-area-inset-bottom)); }
+}
+
+/* ==============================
+   사이드바 & 오버레이
+   ============================== */
+#sidebar {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 260px;
+  max-width: 80%;
+  height: 100vh;
+  background: var(--btnbg);
+  border-left: 1px solid var(--border);
+  box-shadow: -10px 0 25px rgba(0,0,0,0.5);
+  transform: translateX(100%);
+  transition: transform 0.25s ease-out;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  color: var(--text);
+}
+
+#sidebar.open {
+  transform: translateX(0);
+}
+
+#sidebarHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  font-weight: 600;
+}
+
+#sidebarContent {
+  padding: 12px 16px;
+  font-size: 14px;
+}
+
+#sidebarCloseBtn {
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+/* 오버레이 */
+#sidebarOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.4);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease-out;
+  z-index: 15;
+}
+
+#sidebarOverlay.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* ==============================
+   사이드바 설정 행 & 토글
+   ============================== */
+.settingRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+}
+
+.settingLabel {
+  font-size: 14px;
+}
+
+/* 토글 스위치 공통 */
+.toggleSwitch {
+  position: relative;
+  display: inline-block;
+  width: 42px;
+  height: 22px;
+}
+
+/* 실제 체크박스는 숨김 */
+.toggleSwitch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+/* 스위치 배경(슬라이더) */
+.toggleSlider {
+  position: absolute;
+  cursor: pointer;
+  inset: 0;
+  background-color: #444a5a;           /* 꺼졌을 때 배경 */
+  border-radius: 999px;                /* 완전 둥글게 */
+  transition: background-color 0.2s ease, transform 0.2s ease;
+}
+
+/* 동그란 손잡이 */
+.toggleSlider::before {
+  content: "";
+  position: absolute;
+  left: 3px;
+  top: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background-color: #ffffff;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.35);
+  transition: transform 0.2s ease;
+}
+
+/* 체크됐을 때 색/위치 변경 */
+.toggleSwitch input:checked + .toggleSlider {
+  background-color: var(--accent);     /* 파란 불 들어온 느낌 */
+}
+
+.toggleSwitch input:checked + .toggleSlider::before {
+  transform: translateX(18px);         /* 오른쪽으로 이동 */
+}
+
+/* 포커스 링 (키보드 탭용, 선택 사항) */
+.toggleSwitch input:focus + .toggleSlider {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+/* ==============================
+   채팅 로그 & 말풍선
+   ============================== */
+#chatLog {
+  width: 100%;
+  max-height: 40vh;
+  overflow-y: auto;
+  padding: 20px 2px 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  position: relative;
+  background: rgba(0,0,0,0.1);
+  border-radius: 8px;
+}
+
+/* hidden 적용 시 완전 숨기기 */
+#chatLog.hidden {
+  display: none !important;
+}
+
+/* X 버튼 */
+#chatLogCloseBtn {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  border: none;
+  background: transparent;
+  font-size: 18px;
+  cursor: pointer;
+  color: #333;
+  font-weight: bold;
+}
+#chatLogCloseBtn:active {
+  transform: scale(0.9);
+}
+
+/* 메시지 목록 */
+#chatLogMessages {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* 채팅 한 줄 */
+.chatRow {
+  display: flex;
+}
+
+/* 내 메시지 오른쪽 정렬 */
+.chatRow.me {
+  justify-content: flex-end;
+}
+
+/* (상대 메시지용 – 필요하면 사용) */
+.chatRow.other {
+  justify-content: flex-start;
+}
+
+/* 말풍선 공통 */
+.chatBubble {
+  max-width: 70%;
+  padding: 6px 10px;
+  border-radius: 12px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+/* 내 메시지 말풍선 */
+.chatRow.me .chatBubble {
+  background: var(--btnbg);
+  color: var(--intext);
+  border-bottom-right-radius: 4px;
+}
+
+/* (상대 메시지용 – 필요하면 사용) */
+.chatRow.other .chatBubble {
+  background: rgba(0,0,0,0.15);
+  color: #111;
+  border-bottom-left-radius: 4px;
+}
+
+/* 입력 줄: 인풋 + 전송 버튼 */
+#inputRow{
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+#userTextInput{
+  flex: 1;                 /* 입력칸이 가능한 넓게 */
+}
+
+/* 전송 버튼 */
+#sendBtn{
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--btnbg);
+  color: var(--intext);
+  font-size: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+#sendBtn:active{
+  transform: scale(0.96);
+}
+
+/* 녹음 버튼: 메인 화면 하단 중앙 쯤 */
+#recordBtn{
+  margin-top: auto;              /* mainScreen의 맨 아래 쪽으로 밀림 */
+  margin-bottom: 6px;            /* 입력칸과 살짝 거리 */
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: none;
+  outline: none;
+  cursor: pointer;
+
+  background: #666666;           /* 기본: 회색 (대기) */
+  box-shadow: 0 0 0 2px rgba(0,0,0,0.2);
+  position: relative;
+}
+
+/* 안쪽 작은 점(녹음 표시) */
+#recordBtn::before{
+  content: "";
+  position: absolute;
+  inset: 11px;                   /* 안쪽에 작은 원 */
+  border-radius: 50%;
+  background: #cccccc;           /* 대기 상태: 연한 회색 */
+}
+
+/* 녹음 중 상태 (클래스 토글) */
+#recordBtn.recording{
+  background: #e64545;           /* 빨간색 */
+}
+
+#recordBtn.recording::before{
+  background: #ffb3b3;           /* 안쪽도 붉은 계열 */
+}
+
+/* 눌렀을 때 살짝 줄어드는 느낌 */
+#recordBtn:active{
+  transform: scale(0.95);
+}
+
+/* ===== 로그인 화면 ===== */
+/* #phone 안에서 다른 화면들과 동일하게 한 장짜리 페이지로 겹치게 */
+#loginScreen{
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 24px 20px;
+  background: var(--panel);
+}
+
+#loginScreen h1{
+  font-size: 22px;
+  font-weight: 700;
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+#loginForm{
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.loginRow{
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.loginRow label{
+  font-size: 13px;
+}
+
+.loginRow input{
+  height: 40px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  padding: 0 10px;
+  background: #111521;
+  color: var(--intext);
+}
+
+#loginSubmitBtn{
+  margin-top: 8px;
+  height: 42px;
+  border-radius: 10px;
+  border: none;
+  background: var(--btnbg);
+  color: var(--intext);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+#loginSubmitBtn:active{
+  transform: scale(0.97);
+}
+
+.loginError{
+  margin-top: 6px;
+  font-size: 13px;
+  color: #d93025;
+}
+
+#registerScreen {
+  width: 100%;
+  max-width: 420px;
+  min-height: 100svh;
+  margin: 0 auto;
+  background: var(--panel);
+  border-left: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 24px 20px;
+}
+
+/* 기본 오디오 UI 숨기기 */
+audio.audioPlayer {
+  display: none;
+}
+
+/* 말풍선 스타일 */
+.audioBubble {
+  background: #fff;
+  border-radius: 12px;
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 240px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+}
+
+/* 재생 버튼 */
+.audioPlayBtn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: none;
+  background: #3DA5EB;
+  color: white;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.audioPlayBtn:active {
+  transform: scale(0.95);
+}
