@@ -1,0 +1,38 @@
+{
+  "server": {
+    "host": "0.0.0.0",
+    "port": 8002,
+    "title": "RAG-based LLM Server",
+    "description": "모듈화된 RAG 기반 LLM 서버",
+    "version": "3.2.0"
+  },
+  "model": {
+    "llm_model": "gpt-3.5-turbo",
+    "embedding_model": "text-embedding-3-small"
+  },
+  "llm_parameters": {
+    "temperature": 0.7,
+    "max_tokens": 300
+  },
+  "paths": {
+    "chroma_persist_dir": "./chroma_db",
+    "system_prompt_file": "./system_prompt.json",
+    "config_file": "./config.json"
+  },
+  "memory": {
+    "k": 15,
+    "description": "최근 k개 대화만 기억"
+  },
+  "rag": {
+    "chunk_size": 500,
+    "chunk_overlap": 50,
+    "retriever_k": 3,
+    "description": "검색 시 상위 k개 문서 반환"
+  },
+  "cors": {
+    "allow_origins": ["*"],
+    "allow_credentials": true,
+    "allow_methods": ["*"],
+    "allow_headers": ["*"]
+  }
+}
