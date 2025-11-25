@@ -19,10 +19,10 @@ document.addEventListener("DOMContentLoaded", () => {
         document.close();
     });
 
-    // ✅ 모델 실행: JSON 받아서 partial 업데이트
+    // ✅ 모델 실행: 순차적으로 ATOT → Backend 파이프라인 실행
     runBtn.addEventListener("click", async () => {
         runBtn.disabled = true;
-        modelResult.textContent = "모델 실행 중...";
+        modelResult.innerHTML = '<p>⏳ 1/2 음성 처리 중...</p>';
 
         try {
             const audioEl = document.getElementById("uploaded_audio");
@@ -31,65 +31,115 @@ document.addEventListener("DOMContentLoaded", () => {
             const fd = new FormData();
 
             if (audioEl) {
-                // 오디오가 보이면 오디오 모드
                 fd.append("mode", "audio");
             } else if (textEl) {
-                // 텍스트가 보이면 텍스트 모드
                 fd.append("mode", "text");
                 fd.append("user_input", textEl.textContent.trim());
             } else {
                 modelResult.innerHTML = `<p style="color:#c00;">최근에 제출된 오디오/텍스트가 없습니다.</p>`;
+                runBtn.disabled = false;
                 return;
             }
 
-            const res  = await fetch("/run-model", { method: "POST", body: fd });
+            // ====== STEP 1: ATOT 모델 실행 ======
+            const res = await fetch("/run-model", { method: "POST", body: fd });
             const text = await res.text();
 
             let data;
-            try { data = JSON.parse(text); }
-            catch { modelResult.innerHTML = `<p style="color:#c00;">JSON 아님: ${text}</p>`; return; }
+            try { 
+                data = JSON.parse(text); 
+            } catch { 
+                modelResult.innerHTML = `<p style="color:#c00;">JSON 파싱 실패: ${text}</p>`; 
+                runBtn.disabled = false;
+                return; 
+            }
 
             if (!res.ok || !data.ok) {
                 modelResult.innerHTML = `<p style="color:#c00;">${data.error || "모델 실행 오류"}</p>`;
+                runBtn.disabled = false;
                 return;
             }
 
-            const picked  = data.picked || {};
+            // ATOT 결과 표시
             const details = (data.result && data.result.details) || {};
-
-            const audioUrl = details.audio_url || ""; // ✅ model.py가 내려주는 /static/... URL
+            const audioUrl = details.audio_url || "";
             const receivedText = details.received_text || "";
-
-            const finalPicked = audioUrl ? "audio" : "text";
 
             let html = `
                 <div class="card">
-                    <p><strong>선택:</strong> ${finalPicked === "audio" ? "오디오" : "텍스트"}</p>
-                    ${finalPicked === "audio"
-                        ? `
-                            ${audioUrl
-                                ? `
-                                    <div style="margin-top:8px;">
-                                      <p><strong>모델 출력(오디오):</strong></p>
-                                      <audio controls src="${audioUrl}"></audio>
-                                      <p class="small">${escapeHtml(audioUrl)}</p>
-                                    </div>
-                                `
-                                : `<p><strong>파일:</strong> ${details.audio_name || ""} (${details.audio_size_bytes || 0} bytes)</p>`
-                            }
-                        `
-                        : `<p><strong>텍스트:</strong> ${escapeHtml(receivedText)}</p>`
-                    }
-                    <p><strong>상태:</strong> ${data.result?.status || "unknown"}</p>
-                    <p><strong>메모:</strong> ${details.note || ""}</p>
+                    <h4>✅ 1단계: 음성 처리 완료</h4>
+                    <p><strong>인식된 텍스트:</strong> ${escapeHtml(receivedText)}</p>
+                    ${audioUrl ? `<p><strong>오디오:</strong> ${escapeHtml(audioUrl)}</p>` : ''}
                 </div>
             `;
-
             modelResult.innerHTML = html;
+
+            // ====== STEP 2: 전체 파이프라인 실행 (TTOT + TTS + DB) ======
+            modelResult.innerHTML += '<p style="margin-top:16px;">⏳ 2/2 전체 파이프라인 실행 중 (응답 생성 + TTS + DB 저장)...</p>';
+            
+            try {
+                const pipelineRes = await fetch("http://127.0.0.1:5000/run-full-pipeline", { 
+                    method: "POST",
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                const pipelineData = await pipelineRes.json();
+                
+                if (pipelineData.success) {
+                    modelResult.innerHTML += `
+                        <div class="card" style="margin-top:12px; background:#e8f5e9;">
+                            <h4>✅ 전체 파이프라인 완료!</h4>
+                            
+                            <div style="margin-top:12px;">
+                                <h5>📥 입력 (ATOT 결과):</h5>
+                                <p><strong>음성 파일:</strong> ${pipelineData.final_data.input_wav || 'N/A'}</p>
+                                <p><strong>인식된 텍스트:</strong> ${escapeHtml(pipelineData.final_data.atot_text || '')}</p>
+                            </div>
+                            
+                            <div style="margin-top:12px;">
+                                <h5>💬 AI 응답 (TTOT 결과):</h5>
+                                <p style="background:#f5f5f5; padding:8px; border-radius:4px;">${escapeHtml(pipelineData.final_data.ttot_text || '')}</p>
+                            </div>
+                            
+                            <div style="margin-top:12px;">
+                                <h5>🔊 음성 출력 (TTS 결과):</h5>
+                                ${pipelineData.step3_tts.success 
+                                    ? `<p>✅ 오디오 파일 생성 완료: <strong>${pipelineData.final_data.output_wav}</strong></p>`
+                                    : `<p>⚠️ TTS 실패: ${pipelineData.step3_tts.tts_error || 'Unknown'}</p>`
+                                }
+                            </div>
+                            
+                            <p style="margin-top:12px;"><strong>사용자 ID:</strong> ${pipelineData.user_id}</p>
+                        </div>
+                    `;
+                } else {
+                    modelResult.innerHTML += `
+                        <div class="card" style="margin-top:12px; background:#ffebee;">
+                            <h4>❌ 파이프라인 실패</h4>
+                            <p style="color:#c00;"><strong>발생한 오류:</strong></p>
+                            <ul style="color:#c00;">
+                                ${pipelineData.errors.map(err => `<li>${escapeHtml(err)}</li>`).join('')}
+                            </ul>
+                            ${pipelineData.step1_atot ? `<p><strong>ATOT:</strong> ${pipelineData.step1_atot.success ? '✅' : '❌'}</p>` : ''}
+                            ${pipelineData.step2_ttot ? `<p><strong>TTOT:</strong> ${pipelineData.step2_ttot.success ? '✅' : '❌'}</p>` : ''}
+                            ${pipelineData.step3_tts ? `<p><strong>TTS:</strong> ${pipelineData.step3_tts.success ? '✅' : '❌'}</p>` : ''}
+                        </div>
+                    `;
+                }
+            } catch (pipelineErr) {
+                modelResult.innerHTML += `
+                    <div class="card" style="margin-top:12px; background:#ffebee;">
+                        <h4>❌ Backend 서버 연결 오류</h4>
+                        <p style="color:#c00;">${pipelineErr.message}</p>
+                        <p style="font-size:0.9em;">Backend 서버(port 5000)가 실행 중인지 확인하세요.</p>
+                    </div>
+                `;
+            }
+
         } catch (err) {
-          modelResult.innerHTML = `<p style="color:#c00;">${err}</p>`;
+            modelResult.innerHTML = `<p style="color:#c00;">오류 발생: ${err.message}</p>`;
         } finally {
-          runBtn.disabled = false;
+            runBtn.disabled = false;
         }
     });
 

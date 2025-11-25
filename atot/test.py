@@ -1,5 +1,6 @@
 # test.py
 from typing import Optional, Dict
+from audioStream import audio2text
 
 def passthrough(user_text: Optional[str], audio_path: Optional[str]) -> Dict[str, Optional[str]]:
     """
@@ -8,10 +9,15 @@ def passthrough(user_text: Optional[str], audio_path: Optional[str]) -> Dict[str
     텍스트 = user_text
     오디오 경로 = audio_path
     """
-    if audio_path:
-        user_text = "hi"
+    user_path = None
+    if audio_path is not None:
+        user_text = audio2text(mode="file", wavefile = audio_path)
+        user_path = audio_path
+    elif user_text is None:
+        raise ValueError("오디오와 텍스트 모두 None입니다.")
+        
 
     return {
         "user_text": user_text,
-        "audio_path": None,
+        "audio_path": user_path,
     }
