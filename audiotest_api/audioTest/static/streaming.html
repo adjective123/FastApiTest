@@ -1,0 +1,493 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>🎧 실시간 음성 스트리밍</title>
+  <style>
+    /* ========== 기본 스타일 ========== */
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; padding: 24px; }
+    h1 { margin: 0; }
+    button { padding: 10px 14px; border-radius: 8px; border: 1px solid #ccc; margin-right: 8px; cursor: pointer; }
+    button:disabled { opacity: 0.6; cursor: not-allowed; }
+
+    /* ========== 모드 선택 버튼 ========== */
+    .mode-btn { background: #f0f0f0; }
+    .mode-btn.active { background: #2196f3; color: white; border-color: #2196f3; }
+
+    /* ========== 헤더 & 상태 인디케이터 ========== */
+    .header-container { display: flex; align-items: center; gap: 16px; margin-bottom: 20px; }
+    .status-indicator { width: 24px; height: 24px; border-radius: 50%; background-color: #ccc; transition: background-color 0.3s ease; box-shadow: 0 0 8px rgba(0, 0, 0, 0.1); }
+    .status-indicator.silent { background-color: #ffc107; box-shadow: 0 0 12px rgba(255, 193, 7, 0.6); }
+    .status-indicator.speech { background-color: #4caf50; box-shadow: 0 0 12px rgba(76, 175, 80, 0.6); }
+    .status-indicator.finished { background-color: #f44336; box-shadow: 0 0 12px rgba(244, 67, 54, 0.6); }
+    .status-label { font-size: 12px; color: #666; margin-top: 4px; }
+
+    /* ========== 마이크 정보 ========== */
+    .mic-info { margin-top: 16px; padding: 12px; background: #f5f5f5; border-radius: 8px; border: 1px solid #ddd; }
+    .mic-device { font-size: 13px; color: #333; margin-bottom: 8px; font-weight: 500; }
+    .mic-level-container { display: flex; align-items: center; gap: 10px; }
+    .mic-level-label { font-size: 12px; color: #666; min-width: 60px; }
+    .mic-level-bar { flex: 1; height: 20px; background: #e0e0e0; border-radius: 10px; overflow: hidden; }
+    .mic-level-fill { height: 100%; background: linear-gradient(90deg, #4caf50 0%, #8bc34a 50%, #ffc107 75%, #ff5722 100%); width: 0%; transition: width 0.1s ease; }
+    .mic-level-value { font-size: 12px; color: #666; min-width: 40px; text-align: right; }
+
+    /* ========== 파일 업로드 영역 ========== */
+    .file-upload-area { margin-top: 12px; padding: 16px; background: #e3f2fd; border-radius: 8px; border: 2px dashed #2196f3; }
+    .file-upload-area input[type="file"] { margin-bottom: 10px; }
+
+    /* ========== 상태 텍스트 ========== */
+    #status { white-space: pre-line; margin-top: 12px; padding: 10px; background: #f0f0f0; border-radius: 4px; min-height: 60px; font-size: 14px; }
+  </style>
+</head>
+<body>
+
+  <!-- ========== 헤더 영역 ========== -->
+  <div class="header-container">
+    <div>
+      <div class="status-indicator" id="statusIndicator"></div>
+      <div class="status-label" id="statusLabel">대기 중</div>
+    </div>
+    <h1>🎧 실시간 음성 스트리밍</h1>
+  </div>
+
+  <!-- ========== 모드 선택 영역 ========== -->
+  <div style="margin-bottom: 12px;">
+    <button id="streamModeBtn" class="mode-btn active">🎙️ 스트리밍</button>
+    <button id="fileModeBtn" class="mode-btn">📁 파일</button>
+  </div>
+
+  <!-- ========== 스트리밍 모드 버튼 ========== -->
+  <div id="streamControls">
+    <button id="startBtn">녹음 시작</button>
+    <button id="stopBtn" disabled>녹음 중지</button>
+  </div>
+
+  <!-- ========== 파일 모드 업로드 영역 ========== -->
+  <div id="fileUploadArea" class="file-upload-area" style="display: none;">
+    <input type="file" id="audioFile" accept=".wav" />
+    <button id="uploadBtn">📤 업로드 & 전사</button>
+  </div>
+
+  <!-- ========== 마이크 정보 영역 ========== -->
+  <div class="mic-info" id="micInfo" style="display: none;">
+    <div class="mic-device" id="micDevice">🎤 마이크: 감지 중...</div>
+    <div class="mic-level-container">
+      <span class="mic-level-label">입력 감도:</span>
+      <div class="mic-level-bar">
+        <div class="mic-level-fill" id="micLevelFill"></div>
+      </div>
+      <span class="mic-level-value" id="micLevelValue">0%</span>
+    </div>
+  </div>
+
+  <!-- ========== 상태 표시 영역 ========== -->
+  <div id="status">대기 중...</div>
+  <div style="margin-top: 20px;">
+    <h3 style="margin: 0 0 10px 0; font-size: 14px;">📊 청크 파형</h3>
+    <canvas id="waveformCanvas" width="800" height="120" style="border: 1px solid #ddd; border-radius: 4px; background: #fafafa;"></canvas>
+  </div>
+
+  <script>
+    // ========================================
+    // 설정
+    // ========================================
+    const COMM_URL = 'http://127.0.0.1:8000';
+
+    // ========================================
+    // DOM 요소
+    // ========================================
+    const startBtn = document.getElementById('startBtn');
+    const stopBtn = document.getElementById('stopBtn');
+    const status = document.getElementById('status');
+    const statusIndicator = document.getElementById('statusIndicator');
+    const statusLabel = document.getElementById('statusLabel');
+    const micInfo = document.getElementById('micInfo');
+    const micDevice = document.getElementById('micDevice');
+    const micLevelFill = document.getElementById('micLevelFill');
+    const micLevelValue = document.getElementById('micLevelValue');
+    const waveformCanvas = document.getElementById('waveformCanvas');
+    const waveformCtx = waveformCanvas.getContext('2d');
+    const streamModeBtn = document.getElementById('streamModeBtn');
+    const fileModeBtn = document.getElementById('fileModeBtn');
+    const streamControls = document.getElementById('streamControls');
+    const fileUploadArea = document.getElementById('fileUploadArea');
+    const audioFile = document.getElementById('audioFile');
+    const uploadBtn = document.getElementById('uploadBtn');
+
+    // ========================================
+    // 상태 변수
+    // ========================================
+    let sessionId;
+    let seq = 0;
+    let isRecording = false;
+    let audioContext;
+    let analyser;
+    let microphone;
+    let workletNode;
+    let animationId;
+    let stream;
+    let currentMode = 'chunk';  // 'chunk' 또는 'file'
+
+    // ========================================
+    // 모드 전환
+    // ========================================
+    streamModeBtn.addEventListener('click', () => {
+      currentMode = 'chunk';
+      streamModeBtn.classList.add('active');
+      fileModeBtn.classList.remove('active');
+      streamControls.style.display = 'block';
+      fileUploadArea.style.display = 'none';
+      status.textContent = '대기 중...';
+      updateIndicator('Reset');
+    });
+
+    fileModeBtn.addEventListener('click', () => {
+      currentMode = 'file';
+      fileModeBtn.classList.add('active');
+      streamModeBtn.classList.remove('active');
+      streamControls.style.display = 'none';
+      fileUploadArea.style.display = 'block';
+      micInfo.style.display = 'none';
+      status.textContent = 'WAV 파일을 선택해주세요.';
+      updateIndicator('Reset');
+    });
+
+    // ========================================
+    // 파일 업로드 처리
+    // ========================================
+    uploadBtn.addEventListener('click', async () => {
+      const file = audioFile.files[0];
+      
+      if (!file) {
+        status.textContent = '❌ 파일을 선택해주세요.';
+        return;
+      }
+      
+      if (!file.name.endsWith('.wav')) {
+        status.textContent = '❌ WAV 파일만 지원합니다.';
+        return;
+      }
+      
+      status.textContent = '🔄 전사 중...';
+      updateIndicator('Speech');
+      uploadBtn.disabled = true;
+      
+      const startRes = await fetch(`${COMM_URL}/start`, { method: 'POST' });
+      const startData = await startRes.json();
+
+      const formData = new FormData();
+      formData.append('sessionId', startData.sessionId);
+      formData.append('chunk', file);
+      formData.append('mode', 'file');
+      
+      try {
+        const res = await fetch(`${COMM_URL}/ingest-chunk`, {
+          method: 'POST',
+          body: formData
+        });
+        
+        const data = await res.json();
+        
+        if (data.status === 'Finished') {
+          status.textContent = `✅ 결과: ${data.text || '(텍스트 없음)'}`;
+          updateIndicator('Finished');
+        } else {
+          status.textContent = `❌ 오류: ${data.detail || '알 수 없는 오류'}`;
+          updateIndicator('Reset');
+        }
+      } catch (err) {
+        status.textContent = `❌ 전송 실패: ${err.message}`;
+        updateIndicator('Reset');
+      } finally {
+        uploadBtn.disabled = false;
+      }
+    });
+
+    // ========================================
+    // 유틸리티 함수
+    // ========================================
+    
+    // 상태 인디케이터 업데이트
+    function updateIndicator(statusValue) {
+      statusIndicator.classList.remove('silent', 'speech', 'finished');
+      
+      switch(statusValue) {
+        case 'Silent':
+          statusIndicator.classList.add('silent');
+          statusLabel.textContent = '🟡 무음';
+          break;
+        case 'Speech':
+          statusIndicator.classList.add('speech');
+          statusLabel.textContent = '🟢 음성 감지';
+          break;
+        case 'Finished':
+          statusIndicator.classList.add('finished');
+          statusLabel.textContent = '🔴 완료';
+          break;
+        default:
+          statusLabel.textContent = '⚪ 대기 중';
+      }
+    }
+
+
+    // ========================================
+    // 파형 그리기
+    // ========================================
+    function drawWaveform(buffer) {
+      const int16Array = new Int16Array(buffer);
+      const width = waveformCanvas.width;
+      const height = waveformCanvas.height;
+      const centerY = height / 2;
+      
+      // 배경
+      waveformCtx.fillStyle = '#fafafa';
+      waveformCtx.fillRect(0, 0, width, height);
+      
+      // 중앙선
+      waveformCtx.strokeStyle = '#ddd';
+      waveformCtx.beginPath();
+      waveformCtx.moveTo(0, centerY);
+      waveformCtx.lineTo(width, centerY);
+      waveformCtx.stroke();
+      
+      // 파형
+      waveformCtx.strokeStyle = '#2196f3';
+      waveformCtx.lineWidth = 1;
+      waveformCtx.beginPath();
+      
+      const step = Math.ceil(int16Array.length / width);
+      
+      for (let i = 0; i < width; i++) {
+        const idx = i * step;
+        if (idx < int16Array.length) {
+          const sample = int16Array[idx];
+          const y = centerY - (sample / 32768) * centerY * 0.9;
+          
+          if (i === 0) {
+            waveformCtx.moveTo(i, y);
+          } else {
+            waveformCtx.lineTo(i, y);
+          }
+        }
+      }
+      
+      waveformCtx.stroke();
+      
+      // 정보 표시
+      let maxVal = 0;
+      for (let i = 0; i < int16Array.length; i++) {
+        const absVal = Math.abs(int16Array[i]);
+        if (absVal > maxVal) maxVal = absVal;
+      }
+      
+      waveformCtx.fillStyle = '#666';
+      waveformCtx.font = '10px monospace';
+      waveformCtx.fillText(`샘플: ${int16Array.length} | 최대: ${maxVal}`, 5, 12);
+    }
+
+    // ========================================
+    // 마이크 레벨 모니터링
+    // ========================================
+    function updateMicLevel() {
+      if (!analyser || !isRecording) return;
+
+      const dataArray = new Uint8Array(analyser.frequencyBinCount);
+      analyser.getByteFrequencyData(dataArray);
+
+      let sum = 0;
+      for (let i = 0; i < dataArray.length; i++) {
+        sum += dataArray[i];
+      }
+      const average = sum / dataArray.length;
+      const percentage = Math.min(100, (average / 255) * 150);
+
+      micLevelFill.style.width = `${percentage}%`;
+      micLevelValue.textContent = `${Math.round(percentage)}%`;
+
+      animationId = requestAnimationFrame(updateMicLevel);
+    }
+
+    // ========================================
+    // 리소스 정리
+    // ========================================
+    function stopRecording(message = '') {
+      isRecording = false;
+      
+      // 애니메이션 정리
+      if (animationId) {
+        cancelAnimationFrame(animationId);
+        animationId = null;
+      }
+      
+      // Worklet 정리
+      if (workletNode) {
+        workletNode.port.postMessage('stop');
+        workletNode.port.onmessage = null;
+        workletNode.disconnect();
+        workletNode = null;
+      }
+      
+      // 스트림 정리
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+        stream = null;
+      }
+
+      // 오디오 노드 정리
+      if (microphone) {
+        microphone.disconnect();
+        microphone = null;
+      }
+      if (analyser) {
+        analyser.disconnect();
+        analyser = null;
+      }
+      
+      // AudioContext 정리
+      if (audioContext && audioContext.state !== 'closed') {
+        audioContext.close();
+        audioContext = null;
+      }
+      
+      // UI 초기화
+      micInfo.style.display = 'none';
+      micLevelFill.style.width = '0%';
+      micLevelValue.textContent = '0%';
+      startBtn.disabled = false;
+      stopBtn.disabled = true;
+      
+      if (message) {
+        status.textContent = message;
+      }
+    }
+
+    // ========================================
+    // PCM 청크 전송
+    // ========================================
+    async function sendPCMChunk(buffer) {
+      if (!isRecording) return;
+
+      drawWaveform(buffer);
+
+      const currentSeq = seq++;
+      const chunkSize = buffer.byteLength;
+      
+      // FormData 생성
+      const blob = new Blob([buffer], { type: 'application/octet-stream' });
+      const formData = new FormData();
+      formData.append('sessionId', sessionId);
+      formData.append('chunk', blob, `chunk-${currentSeq}.raw`);
+      formData.append('mode', 'chunk');
+
+      try {
+        const res = await fetch(`${COMM_URL}/ingest-chunk`, { 
+          method: 'POST', 
+          body: formData 
+        });
+        
+        // 응답 처리
+        if (res.status === 200) {
+          const data = await res.json();
+          
+          if (data.status) {
+            updateIndicator(data.status);
+          }
+
+          if (data.status === 'Finished') {
+            status.textContent = `✅ 완료: ${data.text || ''}`;
+            setTimeout(() => {
+              stopRecording('대기 중...');
+              updateIndicator('Reset');
+            }, 2000);
+          }
+        }
+        
+      } catch (err) {
+        console.error("전송 실패:", err);
+      }
+    }
+
+    // ========================================
+    // 녹음 시작
+    // ========================================
+    startBtn.addEventListener('click', async () => {
+      try {
+        // 1. 마이크 스트림 획득
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        
+        // 마이크 정보 표시
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const audioDevice = stream.getAudioTracks()[0].getSettings();
+        const device = devices.find(d => d.kind === 'audioinput' && d.deviceId === audioDevice.deviceId);
+        micDevice.textContent = `🎤 ${device ? device.label : '기본 마이크'}`;
+        micInfo.style.display = 'block';
+
+        // 2. AudioContext 생성 & Worklet 로드
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        await audioContext.audioWorklet.addModule('/static/processor.js?v=' + Date.now());
+
+        // 3. 오디오 노드 생성 & 연결
+        analyser = audioContext.createAnalyser();
+        analyser.fftSize = 256;
+        microphone = audioContext.createMediaStreamSource(stream);
+        workletNode = new AudioWorkletNode(audioContext, 'audio-stream-processor');
+
+        microphone.connect(analyser);
+        microphone.connect(workletNode);
+
+        // 4. Worklet 데이터 수신
+        workletNode.port.onmessage = (event) => {
+          sendPCMChunk(event.data);
+        };
+        
+        // 5. 세션 시작
+        const startRes = await fetch(`${COMM_URL}/start`, { method: 'POST' });
+        const startData = await startRes.json();
+        sessionId = startData.sessionId;
+        seq = 0;
+
+        // 6. UI 업데이트
+        status.textContent = `녹음 중... (세션: ${sessionId.substring(0, 8)}...)`;
+        updateIndicator('Silent');
+        isRecording = true;
+        updateMicLevel();
+
+        startBtn.disabled = true;
+        stopBtn.disabled = false;
+
+      } catch (err) {
+        status.textContent = `에러: ${err.message}`;
+        console.error("에러:", err);
+        stopRecording();
+      }
+    });
+
+    // ========================================
+    // 녹음 중지
+    // ========================================
+    stopBtn.addEventListener('click', () => {
+      stopRecording('수동 중지');
+      updateIndicator('Reset');
+    });
+
+    // ========================================
+    // 페이지 이탈 시 정리
+    // ========================================
+    window.addEventListener('beforeunload', () => {
+      if (workletNode) {
+        workletNode.port.postMessage('stop');
+      }
+      stopRecording();
+    });
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden && isRecording) {
+        stopRecording('페이지 숨김');
+        updateIndicator('Reset');
+      }
+    });
+
+  </script>
+</body>
+</html>
