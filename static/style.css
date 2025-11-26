@@ -704,3 +704,29 @@ audio.audioPlayer {
 .audioPlayBtn:active {
   transform: scale(0.95);
 }
+
+.optionList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 8px 0;
+}
+
+.radioOption {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  padding: 6px 4px;
+}
+
+.radioOption input[type="radio"] {
+  width: 18px;
+  height: 18px;
+  accent-color: #3a7bfd; /* 체크 색상 */
+}
+
+.radioOption span {
+  font-size: 15px;
+  color: #222;
+}

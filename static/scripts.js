@@ -30,6 +30,9 @@ document.addEventListener("DOMContentLoaded", () => {
   // 로그인 성공 후 메시지 로딩에 쓸 함수(아래에서 할당)
   let loadMessages = null;
 
+  // 모델 선택
+  let currentChatMode = "0";
+
   // ===== 화면 전환 함수 =====
   function showLogin() {
     if (loginScreen)  loginScreen.classList.remove("hidden");
@@ -189,6 +192,12 @@ document.addEventListener("DOMContentLoaded", () => {
   const sidebar         = document.getElementById("sidebar");
   const sidebarOverlay  = document.getElementById("sidebarOverlay");
   const sidebarCloseBtn = document.getElementById("sidebarCloseBtn");
+
+  document.querySelectorAll("input[name='chatMode']").forEach((el) => {
+    el.addEventListener("change", () => {
+      currentChatMode = el.value;
+    });
+  });
 
   if (settingsBtn && sidebar && sidebarOverlay && sidebarCloseBtn) {
     function openSidebar() {
@@ -367,7 +376,8 @@ document.addEventListener("DOMContentLoaded", () => {
           room_id: roomId,
           text: text,
           client_type: "web",
-          user_id: currentUserId || "test"
+          user_id: currentUserId || "test",
+          mode: currentChatMode
         }),
       });
 
@@ -381,6 +391,7 @@ document.addEventListener("DOMContentLoaded", () => {
       console.log("saved:", saved);
 
       reply_audio_path = `/wav_files/${currentUserUUID}/received_audio.wav`;
+      console.log("reply_audio_path:", reply_audio_path);
 
       // 3) 서버 B에서 처리한 답장만 나중에 표시
       if (saved.reply_text) {

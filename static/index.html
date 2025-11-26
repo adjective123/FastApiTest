@@ -144,13 +144,37 @@
         </div>
         <div id="sidebarContent">
           <div class="settingRow">
-            <span class="settingLabel">설정 1</span>
-            <label class="toggleSwitch">
-              <input type="checkbox" id="setting1Toggle" name="setting1Toggle" />
-              <span class="toggleSlider"></span>
+            <span class="settingLabel">모델 선택</span>
+          </div>
+
+          <div class="optionList">
+            <label class="radioOption">
+              <input type="radio" name="chatMode" value="0" checked>
+              <span>모델 1</span>
+            </label>
+
+            <label class="radioOption">
+              <input type="radio" name="chatMode" value="1">
+              <span>모델 2</span>
+            </label>
+
+            <label class="radioOption">
+              <input type="radio" name="chatMode" value="2">
+              <span>모델 3</span>
+            </label>
+
+            <label class="radioOption">
+              <input type="radio" name="chatMode" value="3">
+              <span>모델 4</span>
+            </label>
+
+            <label class="radioOption">
+              <input type="radio" name="chatMode" value="4">
+              <span>모델 5</span>
             </label>
           </div>
-        </div>
+</div>
+
         <div id="sidebarContent">
           <div class="settingRow">
             <span class="settingLabel">설정 2</span>
@@ -165,6 +189,6 @@
       <div id="sidebarOverlay"></div>
     </div>
   </div>
-  <script src="/static/scripts.js?v=20251124-3" defer></script>
+  <script src="/static/scripts.js" defer></script>
 </body>
 </html>
