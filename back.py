@@ -24,16 +24,15 @@ app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "http://localhost:8000",
+        "http://localhost:8000",  # atot 서버
         "http://127.0.0.1:8000",
-        "http://localhost:5000",
-        "http://127.0.0.1:5000",
-        "http://localhost:5001",      # ← back.py 자체 포트
+        "http://localhost:5001",  # back.py 서버
         "http://127.0.0.1:5001",
-        "http://localhost:8002",
+        "http://localhost:8002",  # ttot 서버
         "http://127.0.0.1:8002",
-        "http://localhost:3000",
+        "http://localhost:3000",  # 클라이언트 서버
         "http://127.0.0.1:3000",
+        "http://localhost:8004",  # tts 서버
         "http://127.0.0.1:8004"
     ],
     allow_credentials=True,
@@ -126,9 +125,6 @@ class UserData(BaseModel):
     room_id: str
     input_text_list: Optional[List[Optional[str]]] = []
     output_text_list: Optional[List[Optional[str]]] = []
-    input_wav_list: Optional[List[Optional[str]]] = []
-    atot_text_list: Optional[List[Optional[str]]] = []
-    ttot_text_list: Optional[List[Optional[str]]] = []
     output_wav_list: Optional[List[Optional[str]]] = []
     
     class Config:
@@ -357,84 +353,14 @@ async def get_user_output(uuid: int, db: Session=Depends(get_db)):
         raise HTTPException(status_code=404, detail="User not found")
     return {"user_id": user.uuid, "output_text": user.output_text_list}
 
-@app.post("/process-audio")
-async def process_audio(db: Session=Depends(get_db)):
-    """저장된 데이터를 사용해 TTS 처리"""
-    
-    if SharedData.output_text is None:
-        return {"error": "output_text가 없습니다. 먼저 /process를 호출하세요"}
-    
-    # DB 조회
-    user = db.query(UserDB).filter(UserDB.uuid==SharedData.uuid).first()
-    if user is None:
-        return {"error": f"User {SharedData.uuid}를 찾을 수 없습니다."}
-    
-    # TTS 처리 변수 초기화
-    output_filename = None
-    tts_success = False
-    tts_error = None
-    
-    # TTS 서버에 요청 (실패해도 계속 진행)
-    try:
-        wav_file_data = get_tts.get_tts_audio(SharedData.output_text, language='ko')  # 파인튜닝된 tts 서버
-        '''  # openai tts 서버
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            tts_response = await client.post(
-                "http://localhost:8004/generate-speech/",
-                json={"request_text": SharedData.output_text},
-                headers={"Content-Type": "application/json"}
-            )
-            tts_response.raise_for_status()
-            wav_file_data = tts_response.content
-        # '''
-        if wav_file_data and len(wav_file_data) > 0:
-            # os.makedirs(f"./wav_files/{user.uuid}", exist_ok=True)
-            PATH = Path(f"./wav_files/{user.uuid}")
-            if not PATH.exists():
-                os.makedirs(PATH)
-                
-            output_filename = f"{PATH}/received_audio.wav"
-            with open(output_filename, 'wb') as f:
-                f.write(wav_file_data)
-            tts_success = True
-            print(f"✅ TTS 성공: {output_filename}, 크기: {len(wav_file_data)} bytes")
-        else:
-            tts_error = "TTS 서버에서 빈 데이터를 받았습니다."
-            print(f"⚠️ TTS 실패: {tts_error}")
-            
-    except httpx.ConnectError as e:
-        tts_error = f"TTS 서버 연결 실패 (port 8004가 실행 중인지 확인): {str(e)}"
-        print(f"❌ {tts_error}")
-    except httpx.HTTPStatusError as e:
-        tts_error = f"TTS API 오류 (상태 코드: {e.response.status_code}): {str(e)}"
-        print(f"❌ {tts_error}")
-    except Exception as e:
-        tts_error = f"TTS 오류: {str(e)}"
-        print(f"❌ TTS 예외: {tts_error}")
-
-    user.input_text_list = (user.input_text_list or []) + [SharedData.input_text or ""]
-    user.output_text_list = (user.output_text_list or []) + [SharedData.output_text or ""]
-    
-    db.commit()
-    db.refresh(user)
-    
-    # 응답 생성
-    response = {
-        "id": user.id,
-        "uuid": user.uuid,
-        "room_id": user.room_id,
-        "input_text_list": user.input_text_list,
-        "output_text_list": user.output_text_list,
-        "tts_success": tts_success
-    }
-    
-    return response
+voice_name_dict = {"0": "mb.wav", "1": "swingpark.wav", "2": "chulsoo.wav", "3": "jaemay.mp3", "4": "moon_short3.wav"}
 
 # ✅ 텍스트 기반 파이프라인 (ATOT 없이 텍스트 → TTOT → DB 저장)
 @app.post("/run-text-pipeline")
 async def run_text_pipeline(
     text: str = Form(...),
     user_id: str = Form(...),
+    mode: str = Form(...),
     db: Session = Depends(get_db)
 ):
     """
@@ -505,7 +431,7 @@ async def run_text_pipeline(
     tts_error = None
 
     try:
-        wav_file_data = get_tts.get_tts_audio(SharedData.output_text, language='ko')  # 파인튜닝된 tts 서버
+        wav_file_data = get_tts.get_tts_audio(SharedData.output_text, language='ko', voice_name=voice_name_dict[mode])  # 파인튜닝된 tts 서버
         '''  # openai tts 서버
         async with httpx.AsyncClient(timeout=30.0) as client:
             tts_response = await client.post(
@@ -533,8 +459,8 @@ async def run_text_pipeline(
                     with open(userdata_path, "r", encoding="utf-8") as f:
                         user_data_list = json.load(f)
                         for user_data in user_data_list:
-                            if user_data["id"] == user_id:
-                                user_uuid = user_data["uuid"]
+                            if user_data == user_id:
+                                user_uuid = user_data_list[user_data]["uuid"]
                                 break
                 except Exception as e:
                     print(f"⚠️ userdata.json 읽기 실패: {e}")
@@ -570,6 +496,8 @@ async def run_text_pipeline(
             output_filename = f"{PATH}/received_audio.wav"
             
             with open(output_filename, 'wb') as f:
+                # if os.path.exists(output_filename):
+                #     os.remove(output_filename)
                 f.write(wav_file_data)
             tts_success = True
             print(f"✅ TTS 성공: {output_filename}, 크기: {len(wav_file_data)} bytes")
@@ -630,6 +558,30 @@ async def run_text_pipeline(
     print("="*60)
     
     return result
+
+@app.get("/memory")
+async def get_users():
+    user_dict = {}
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get("http://localhost:5001/users")
+            response.raise_for_status()
+            data = response.json()
+            
+            for user in data:
+                user_dict[user["uuid"]] = {
+                    "uuid": user["uuid"],
+                    "input_text_list": user["input_text_list"],
+                    "output_text_list": user["output_text_list"]
+                }
+            
+            return user_dict
+
+    except httpx.RequestError as e:
+        raise HTTPException(status_code=500, detail=f"Backend 서버 연결 실패: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"알 수 없는 오류: {str(e)}")
+
 
 # '''
 # ✅ 새로 추가: 전체 파이프라인 통합 엔드포인트

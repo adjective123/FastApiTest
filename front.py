@@ -1,4 +1,4 @@
-# main.py
+# front.py
 from fastapi import FastAPI, UploadFile, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -35,7 +35,7 @@ class MessageCreate(BaseModel):
     text: str
     client_type: str = "web"
     user_id: Optional[str] = "test"  # 로그인한 사용자 ID
-
+    mode: Optional[str] = None # 모드
 
 class MessageResponse(BaseModel):
     id: int
@@ -68,7 +68,7 @@ class RegisterResponse(BaseModel):
 SERVER_B_URL = "http://localhost:5001/process"
 
 # --- 서버 C (오디오 판단 서버) ---
-JUDGE_BASE_URL = "http://127.0.0.1:8000"
+JUDGE_BASE_URL = "http://127.0.0.1:9000"
 JUDGE_START = f"{JUDGE_BASE_URL}/start"
 JUDGE_INGEST_CHUNK = f"{JUDGE_BASE_URL}/ingest-chunk"
 
@@ -109,6 +109,7 @@ async def create_message(payload: MessageCreate):
         "text": payload.text,
         "client_type": payload.client_type,
         "created_at": datetime.utcnow(),
+        "mode": payload.mode
     }
     MESSAGES.append(msg)
 
@@ -126,7 +127,8 @@ async def create_message(payload: MessageCreate):
                 "http://localhost:5001/run-text-pipeline",
                 data={
                     "text": payload.text,
-                    "user_id": payload.user_id  # 실제 로그인한 사용자 ID 사용
+                    "user_id": payload.user_id,  # 실제 로그인한 사용자 ID 사용
+                    "mode": payload.mode
                 }
             )
             resp.raise_for_status()
@@ -187,7 +189,7 @@ def generate_uuid_from_id(user_id: str) -> int:
 
 
 @app.post("/api/login", response_model=LoginResponse)
-async def login(payload: LoginRequest):
+def login(payload: LoginRequest):
     users = load_users()
 
     username = payload.username
@@ -202,15 +204,6 @@ async def login(payload: LoginRequest):
     # 비밀번호 검증
     if user["pwd"] != password:
         return LoginResponse(success=False, message="비밀번호가 올바르지 않습니다.")
-    
-    async with httpx.AsyncClient(timeout=60.0) as client:
-        resp = await client.post(
-                    "http://localhost:5001/api/logindb",
-                    json={
-                        "username": username,
-                        "password": password,
-                    }
-                )
 
     return LoginResponse(
         success=True,
@@ -353,4 +346,4 @@ async def ingest_chunk(
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run("front:app", host="127.0.0.1", port=3000, reload=True)
+    uvicorn.run("front_main:app", host="127.0.0.1", port=3000, reload=True)

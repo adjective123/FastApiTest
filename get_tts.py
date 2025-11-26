@@ -2,7 +2,7 @@ import requests
 import json
 import time
 
-def get_tts_audio(text_to_speak, language='ko', temperature=0.3):
+def get_tts_audio(text_to_speak, language='ko', temperature=0.3, voice_name='mb.wav'):
     """
     FastAPI TTS 서버에 텍스트를 보내고 .wav 파일 데이터를 반환합니다.
     """
@@ -11,14 +11,14 @@ def get_tts_audio(text_to_speak, language='ko', temperature=0.3):
     #    (TTS 서버와 중간 서버가 같은 장비에 있다면 '127.0.0.1' 사용)
     # tts_server_url = "http://192.168.0.42:8000//generate-speech/"  # <--- TTS 서버 IP로 변경
     tts_server_url = "https://webpage-eating-belly-reduction.trycloudflare.com//generate-speech/"  # <--- TTS 서버 IP로 변경
-    
-    
+
+    print(f"voice_name: {voice_name}")
     # 2. 요청 본문 (main.py의 TTSRequest 모델과 일치하는 딕셔너리)
     payload = {
         "text": text_to_speak,
         "language_id": language,
         "temperature": temperature,
-        "audio_prompt_filename": "mb.wav",   # "swingpark.wav", "chulsoo.wav", "mb.wav", "jaemay.mp3", "moon_short3.wav" 
+        "audio_prompt_filename": voice_name,   # "swingpark.wav", "chulsoo.wav", "mb.wav", "jaemay.mp3", "moon_short3.wav" 
         # Pydantic 모델에 정의된 다른 파라미터들도 추가할 수 있습니다.
         "repetition_penalty": 3.5
     }
