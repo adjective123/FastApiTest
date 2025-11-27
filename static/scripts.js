@@ -296,27 +296,36 @@ document.addEventListener("DOMContentLoaded", () => {
 
     chatLog.scrollTop = chatLog.scrollHeight;
 
+    // ✅ GIF 애니메이션을 위한 이미지 요소
+    const gifPath = "/static/talk.gif";
+    const originalImg = "/static/maicon.png";
+    const img = document.getElementById("mainImage");
+
     // 자동 재생 시도
     audio.play().catch((err) => {
       console.warn("자동재생 실패:", err);
       icon.textContent = "▶"; // 자동재생 안되면 ▶로
     });
 
-    // 재생 시작 → ■
+    // 재생 시작 → ■ + GIF 애니메이션
     audio.addEventListener("play", () => {
+      if (img) img.src = gifPath;  // ✅ 말하는 GIF로 변경
       icon.textContent = "■";
     });
 
-    // 재생 종료 → ▶
+    // 재생 종료 → ▶ + 원본 이미지
     audio.addEventListener("ended", () => {
+      if (img) img.src = originalImg;  // ✅ 원래 이미지로 복원
       icon.textContent = "▶";
     });
 
-    // 클릭 시 재생/일시정지 토글
+    // 클릭 시 재생/일시정지 토글 + 이미지 변경
     bubble.addEventListener("click", () => {
       if (audio.paused) {
+        if (img) img.src = gifPath;  // ✅ 말하는 GIF로 변경
         audio.play();
       } else {
+        if (img) img.src = originalImg;  // ✅ 원래 이미지로 복원
         audio.pause();
         icon.textContent = "▶"; // 일시정지 시 ▶
       }
