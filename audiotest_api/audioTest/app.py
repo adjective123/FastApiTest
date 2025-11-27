@@ -24,7 +24,8 @@ def monitoring():
     return FileResponse(BASE_DIR / "monitoring.html")
 
 # ---------- 판단 서버 설정 ----------
-JUDGE_BASE_URL = "http://127.0.0.1:9000"
+JUDGE_BASE_URL = "http://127.0.0.1:8000"
+# JUDGE_BASE_URL = "https://192.168.0.37:8000"
 JUDGE_START = f"{JUDGE_BASE_URL}/start"
 JUDGE_INGEST_CHUNK = f"{JUDGE_BASE_URL}/ingest-chunk"
 
