@@ -1,5 +1,6 @@
 // scripts.js
 const API_BASE_URL = ""; // 같은 서버에서 HTML과 API를 같이 쓸 때는 빈 문자열이면 됨
+// const API_BASE_URL = "https://192.168.0.37:5001";
 
 document.addEventListener("DOMContentLoaded", () => {
   // ===== 로그인 화면 관련 DOM =====
@@ -255,6 +256,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const bubble = document.createElement("div");
     bubble.className = "chatBubble";
+
+    if (who == "system") {
+      bubble.style.backgroundColor = "#ff6b6b";
+      bubble.style.color = "#fff";
+      bubble.style.fontSize = "0.9em";
+      bubble.style.textAlign = "center";
+    }
+
     bubble.textContent = text;
 
     row.appendChild(bubble);
@@ -354,10 +363,69 @@ document.addEventListener("DOMContentLoaded", () => {
       showChatLog();
     }
   });
+  // ------------------------------
+  // UI 잠금/해제 함수
+  // ------------------------------
+  function lockUI() {
+    isProcessingMessage = true;
+    if (userInput) {
+      userInput.disabled = true;
+      userInput.style.opacity = "0.6";
+      userInput.placeholder = "답변 생성 중...";
+    }
+    if (sendBtn) {
+      sendBtn.disabled = true;
+      sendBtn.style.opacity = "0.6";
+    }
+    if (recordBtn) {
+      recordBtn.disabled = true;
+      recordBtn.style.opacity = "0.6";
+    }
+
+    const loadingMsg = document.createElement("div");
+    loadingMsg.id = "loadingMessage";
+    loadingMsg.className = "chatRow other";
+    loadingMsg.innerHTML = `
+    <div class="chatBubble" style="opacity: 0.7;">
+      <span class="loadingDots">답변 생성 중</span>
+    </div>
+  ` ;
+    chatMsgs.appendChild(loadingMsg);
+    chatLog.scrollTop = chatLog.scrollHeight;
+  }
+
+  function unlockUI() {
+    isProcessingMessage = false;
+    if (userInput) {
+      userInput.disabled = false;
+      userInput.style.opacity = "1";
+      userInput.placeholder = "텍스트를 입력하세요";
+      userInput.focus(); // 자동 포커스
+    }
+    if (sendBtn) {
+      sendBtn.disabled = false;
+      sendBtn.style.opacity = "1";
+    }
+    if (recordBtn) {
+      recordBtn.disabled = false;
+      recordBtn.style.opacity = "1";
+    }
+    const loadingMsg = document.getElementById("loadingMessage");
+    if (loadingMsg) {
+      loadingMsg.remove();
+    }
+  }
 
   async function sendMessage(result = null) {
     const text = result ?? userInput.value.trim();
     if (!text) return;
+
+    if (isProcessingMessage) {
+      console.warn("⚠️ 이미 메시지 처리 중입니다.");
+      return;
+    }
+
+    lockUI()
 
     // 1) 먼저 내 메시지를 바로 UI에 표시
     addChatMessage(text, "me");
@@ -400,7 +468,10 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     } catch (err) {
       console.error("메시지 전송 중 오류", err);
+      addChatMessage("서버 연결 오류가 발생했습니다.", "system");
       // 여기서도 "전송 중 오류" 같은 시스템 메시지 띄우고 싶으면 추가 가능
+    } finally {
+      unlockUI()
     }
   }
 
@@ -441,8 +512,10 @@ document.addEventListener("DOMContentLoaded", () => {
   let stream       = null;
   let workletNode  = null;
   let isRecordingAudio = false;
+  let isProcessingMessage = false;
   let recSessionId = null;
   let recSeq       = 0;
+  let recordingTimeout = null; // ✅ 추가: 녹음 타임아웃 관리용
 
   // 세션 시작 (서버A → 서버B /start 프록시)
   async function startAudioSession() {
@@ -484,9 +557,25 @@ document.addEventListener("DOMContentLoaded", () => {
       console.log("audio resp:", data);
 
       // data.status: "Silent" | "Speech" | "Finished" | "Error"
+      // ===== 원본 코드 (주석 처리) =====
+      // if (data.status === "Finished" && data.text) {
+      //   // 최종 인식 결과를 나의 메시지로 표시
+      //   await sendMessage(data.text);
+      // }
+      
+      // ===== 수정된 코드: 음성 인식 완료 후 자동 녹음 중지 =====
       if (data.status === "Finished" && data.text) {
         // 최종 인식 결과를 나의 메시지로 표시
         await sendMessage(data.text);
+        
+        // ✅ 음성 인식 완료 후 녹음 자동 중지
+        stopRecordingAudio("voice-recognition-finished");
+        console.log("✅ 음성 인식 완료 - 녹음 자동 중지");
+      } else if (data.status === "Error") {
+        // ✅ 에러 발생 시에도 녹음 중지
+        stopRecordingAudio("voice-recognition-error");
+        console.error("❌ 음성 인식 오류 - 녹음 중지");
+        addChatMessage("음성 인식 중 오류가 발생했습니다.", "system");
       }
     } catch (err) {
       console.error("청크 업로드 중 오류", err);
@@ -529,6 +618,15 @@ document.addEventListener("DOMContentLoaded", () => {
       recordBtn.setAttribute("aria-label", "음성 녹음 중지");
 
       console.log("🎙️ 녹음 시작");
+      
+      // ✅ 추가: 30초 후 자동 중지 타임아웃 설정
+      recordingTimeout = setTimeout(() => {
+        if (isRecordingAudio) {
+          stopRecordingAudio("timeout-30s");
+          console.log("⏱️ 녹음 시간 초과 (30초) - 자동 중지");
+          addChatMessage("녹음 시간이 초과되었습니다. (최대 30초)", "system");
+        }
+      }, 30000); // 30초
     } catch (err) {
       console.error("녹음 시작 실패:", err);
       alert("녹음을 시작할 수 없습니다: " + err.message);
@@ -562,6 +660,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
     recSessionId = null;
     recSeq = 0;
+    
+    // ✅ 추가: 타임아웃 정리
+    if (recordingTimeout) {
+      clearTimeout(recordingTimeout);
+      recordingTimeout = null;
+    }
 
     if (recordBtn) {
       recordBtn.classList.remove("recording");

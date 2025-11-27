@@ -730,3 +730,20 @@ audio.audioPlayer {
   font-size: 15px;
   color: #222;
 }
+
+.loadingDots::after {
+  content: '...';
+  animation: loadingDots 1.5s steps(4, end) infinite;
+}
+
+@keyframes loadingDots {
+  0%, 20% {
+    content: '.';
+  }
+  40% {
+    content: '..';
+  }
+  60%, 100% {
+    content: '...';
+  }
+}
