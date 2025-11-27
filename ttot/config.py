@@ -40,36 +40,32 @@ class Config:
     
     # 경로 설정
     CHROMA_PERSIST_DIR = None
+    MEMORY_DIR = None
     SYSTEM_PROMPT_FILE = None
-    
+
     # 메모리 설정
     MEMORY_K = None
-    
+
     # RAG 설정
     CHUNK_SIZE = None
     CHUNK_OVERLAP = None
     RETRIEVER_K = None
-    
+
     # CORS 설정
     CORS_ORIGINS = None
     CORS_CREDENTIALS = None
     CORS_METHODS = None
     CORS_HEADERS = None
-    
+
     @classmethod
     def load_config_from_json(cls, config_path: str = None):
-        """
-        JSON 파일에서 설정 로드
-        
-        Args:
-            config_path: 설정 파일 경로 (None이면 기본 경로 사용)
-        """
+        """JSON 파일에서 설정 로드"""
         config_path = config_path or cls.CONFIG_FILE_PATH
-        
+
         try:
             with open(config_path, 'r', encoding='utf-8') as f:
                 cls._config_data = json.load(f)
-            
+
             # 서버 설정
             server = cls._config_data.get('server', {})
             cls.SERVER_HOST = server.get('host', '0.0.0.0')
@@ -77,94 +73,81 @@ class Config:
             cls.SERVER_TITLE = server.get('title', 'LLM Server')
             cls.SERVER_DESCRIPTION = server.get('description', '')
             cls.SERVER_VERSION = server.get('version', '1.0.0')
-            
+
             # 모델 설정
             model = cls._config_data.get('model', {})
-            cls.LLM_MODEL = model.get('llm_model', 'gpt-3.5-turbo')
+            cls.LLM_MODEL = model.get('llm_model', 'gpt-4o-mini')
             cls.EMBEDDING_MODEL = model.get('embedding_model', 'text-embedding-3-small')
-            
+
             # LLM 파라미터
             params = cls._config_data.get('llm_parameters', {})
             cls.TEMPERATURE = params.get('temperature', 0.7)
             cls.MAX_TOKENS = params.get('max_tokens', 300)
-            
+
             # 경로 설정
             paths = cls._config_data.get('paths', {})
             cls.CHROMA_PERSIST_DIR = paths.get('chroma_persist_dir', './chroma_db')
+            cls.MEMORY_DIR = paths.get('memory_dir', './chat_history')
             cls.SYSTEM_PROMPT_FILE = paths.get('system_prompt_file', './system_prompt.json')
-            
+
             # 메모리 설정
             memory = cls._config_data.get('memory', {})
-            cls.MEMORY_K = memory.get('k', 5)
-            
+            cls.MEMORY_K = memory.get('k', 15)
+
             # RAG 설정
             rag = cls._config_data.get('rag', {})
             cls.CHUNK_SIZE = rag.get('chunk_size', 500)
             cls.CHUNK_OVERLAP = rag.get('chunk_overlap', 50)
             cls.RETRIEVER_K = rag.get('retriever_k', 3)
-            
+
             # CORS 설정
             cors = cls._config_data.get('cors', {})
             cls.CORS_ORIGINS = cors.get('allow_origins', ['*'])
             cls.CORS_CREDENTIALS = cors.get('allow_credentials', True)
             cls.CORS_METHODS = cors.get('allow_methods', ['*'])
             cls.CORS_HEADERS = cors.get('allow_headers', ['*'])
-            
+
             print(f"[Config] 설정 파일 로드 완료: {config_path}")
-            
+
         except FileNotFoundError:
-            raise FileNotFoundError(
-                f"{config_path} 파일을 찾을 수 없습니다!\n"
-                "config.json 파일을 생성해주세요."
-            )
+            raise FileNotFoundError(f"{config_path} 파일을 찾을 수 없습니다!")
         except json.JSONDecodeError as e:
             raise ValueError(f"JSON 파싱 오류: {e}")
         except Exception as e:
             raise Exception(f"설정 로드 실패: {e}")
-    
+
     @classmethod
     def validate_config(cls):
         """설정 검증"""
-        # API 키 확인
         if not cls.OPENAI_API_KEY:
-            raise ValueError(
-                "OPENAI_API_KEY가 설정되지 않았습니다!\n"
-                ".env 파일을 생성하고 API 키를 설정해주세요.\n"
-                "예시: OPENAI_API_KEY=your-api-key-here"
-            )
-        
-        # 환경 변수로 설정 (LangChain이 사용)
+            raise ValueError("OPENAI_API_KEY가 설정되지 않았습니다!")
+
         os.environ["OPENAI_API_KEY"] = cls.OPENAI_API_KEY
         print(f"[Config] API 키 로드 완료")
-        
-        # 필수 설정 확인
+
         if not cls.LLM_MODEL:
             raise ValueError("LLM_MODEL이 설정되지 않았습니다!")
         if not cls.EMBEDDING_MODEL:
             raise ValueError("EMBEDDING_MODEL이 설정되지 않았습니다!")
-    
+
     @classmethod
     def create_directories(cls):
         """필요한 디렉토리 생성"""
         Path(cls.CHROMA_PERSIST_DIR).mkdir(exist_ok=True)
+        Path(cls.MEMORY_DIR).mkdir(exist_ok=True)
         print(f"[Config] 디렉토리 생성 완료")
-    
+
     @classmethod
     def initialize(cls, config_path: str = None):
-        """
-        설정 초기화
-        
-        Args:
-            config_path: 설정 파일 경로 (None이면 기본 경로)
-        """
+        """설정 초기화"""
         cls.load_config_from_json(config_path)
         cls.validate_config()
         cls.create_directories()
         print(f"[Config] 설정 초기화 완료")
-    
+
     @classmethod
     def get_config_dict(cls) -> dict:
-        """현재 설정을 딕셔너리로 반환 (API 응답용)"""
+        """현재 설정을 딕셔너리로 반환"""
         return {
             "server": {
                 "host": cls.SERVER_HOST,
@@ -190,18 +173,3 @@ class Config:
                 "retriever_k": cls.RETRIEVER_K
             }
         }
-    
-    @classmethod
-    def print_config(cls):
-        """현재 설정 출력 (디버깅용)"""
-        print("\n" + "=" * 60)
-        print("현재 설정")
-        print("=" * 60)
-        print(f"서버: {cls.SERVER_HOST}:{cls.SERVER_PORT}")
-        print(f"LLM 모델: {cls.LLM_MODEL}")
-        print(f"임베딩 모델: {cls.EMBEDDING_MODEL}")
-        print(f"Temperature: {cls.TEMPERATURE}")
-        print(f"Max Tokens: {cls.MAX_TOKENS}")
-        print(f"메모리 K: {cls.MEMORY_K}")
-        print(f"RAG Retriever K: {cls.RETRIEVER_K}")
-        print("=" * 60 + "\n")
