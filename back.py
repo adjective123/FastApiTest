@@ -20,20 +20,36 @@ import get_tts  # 파인튜닝된 tts 서버
 
 app = FastAPI()
 
+# FRONT_BASE_URL = "http://localhost:3000"
+FRONT_BASE_URL = "https://192.168.0.37:3000"
+BACK_BASE_URL = "http://localhost:5001"
+# BACK_BASE_URL = "https://192.168.0.37:5001"
+ATOT_BASE_URL = "http://localhost:8000"
+# ATOT_BASE_URL = "https://192.168.0.37:8000"
+TTOT_BASE_URL = "http://localhost:8002"
+# TTOT_BASE_URL = "https://192.168.0.37:8002"
+TTS_BASE_URL = "http://localhost:8004"
+# TTS_BASE_URL = "https://192.168.0.37:8004"
+
 # ✅ CORS 설정 추가
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:8000",  # atot 서버
         "http://127.0.0.1:8000",
+        "https://192.168.0.37:8000",
         "http://localhost:5001",  # back.py 서버
         "http://127.0.0.1:5001",
+        "https://192.168.0.37:5001",
         "http://localhost:8002",  # ttot 서버
         "http://127.0.0.1:8002",
+        "https://192.168.0.37:8002",
         "http://localhost:3000",  # 클라이언트 서버
         "http://127.0.0.1:3000",
+        "https://192.168.0.37:3000",
         "http://localhost:8004",  # tts 서버
-        "http://127.0.0.1:8004"
+        "http://127.0.0.1:8004",
+        "https://192.168.0.37:8004"
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -294,7 +310,7 @@ async def process_message(msg: IncomingMessage):
     # - 등등
     try:
         async with httpx.AsyncClient() as client:
-            response = await client.post("http://127.0.0.1:8002/generate", json={
+            response = await client.post(f"{TTOT_BASE_URL}/generate", json={
                 "text": processed,
                 "user_id": "test",
                 "use_rag": True,
@@ -397,7 +413,7 @@ async def run_text_pipeline(
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
             ttot_response = await client.post(
-                "http://127.0.0.1:8002/generate",
+                f"{TTOT_BASE_URL}/generate",
                 json={
                     "text": text,
                     "user_id": user_id,
@@ -435,7 +451,7 @@ async def run_text_pipeline(
         '''  # openai tts 서버
         async with httpx.AsyncClient(timeout=30.0) as client:
             tts_response = await client.post(
-                "http://localhost:8004/generate-speech/",
+                f"{TTS_BASE_URL}/generate-speech/",
                 json={"request_text": SharedData.output_text},
                 headers={"Content-Type": "application/json"}
             )
@@ -564,7 +580,7 @@ async def get_users():
     user_dict = {}
     try:
         async with httpx.AsyncClient() as client:
-            response = await client.get("http://localhost:5001/users")
+            response = await client.get(f"{BACK_BASE_URL}/users")
             response.raise_for_status()
             data = response.json()
             
@@ -582,191 +598,6 @@ async def get_users():
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"알 수 없는 오류: {str(e)}")
 
-
-# '''
-# ✅ 새로 추가: 전체 파이프라인 통합 엔드포인트
-@app.post("/run-full-pipeline")
-async def run_full_pipeline(user_id: Optional[str] = None, db: Session=Depends(get_db)):
-    """
-    전체 파이프라인 실행 (모든 단계를 순차적으로):
-    1. ATOT 서버에서 음성→텍스트 변환 결과 가져오기
-    2. TTOT 서버에서 텍스트→텍스트 생성
-    3. TTS로 음성 생성
-    4. DB에 모든 데이터 저장
-    
-    Args:
-        user_id: 사용자 ID (선택사항, 없으면 ATOT에서 받은 user_id 사용)
-    """
-    result = {
-        "step1_atot": None,
-        "step2_ttot": None,
-        "step3_tts": None,
-        "success": False,
-        "errors": []
-    }
-    
-    print("\n" + "="*60)
-    print("🚀 전체 파이프라인 시작")
-    print("="*60)
-    
-    # ====== STEP 1: ATOT (음성→텍스트) ======
-    print("\n1️⃣  ATOT 서버 호출 중...")
-    try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            atot_response = await client.get("http://127.0.0.1:8000/run-model")
-            atot_response.raise_for_status()
-            atot_data = atot_response.json()
-            
-            SharedData.atot_text = atot_data.get("result", {}).get("details", {}).get("received_text", None)
-            SharedData.input_wav = atot_data.get("result", {}).get("details", {}).get("audio_url", None)
-            
-            result["step1_atot"] = {
-                "success": True,
-                "user_id": atot_data.get("user_id"),
-                "input_wav": SharedData.input_wav,
-                "atot_text": SharedData.atot_text
-            }
-            print(f"✅ ATOT 완료: {SharedData.atot_text}")
-            
-    except Exception as e:
-        error_msg = f"ATOT 실패: {str(e)}"
-        print(f"❌ {error_msg}")
-        result["errors"].append(error_msg)
-        result["step1_atot"] = {"success": False, "error": error_msg}
-        return result  # ATOT 실패하면 여기서 중단
-    
-    # ====== STEP 2: TTOT (텍스트→텍스트) ======
-    print("\n2️⃣  TTOT 서버 호출 중...")
-    try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            ttot_response = await client.get("http://127.0.0.1:8002/generate")
-            ttot_response.raise_for_status()
-            ttot_data = ttot_response.json()
-            
-            SharedData.ttot_text = ttot_data.get("response")
-            
-            result["step2_ttot"] = {
-                "success": True,
-                "user_id": ttot_data.get("user_id"),
-                "ttot_text": SharedData.ttot_text
-            }
-            print(f"✅ TTOT 완료: {SharedData.ttot_text}")
-            
-    except Exception as e:
-        error_msg = f"TTOT 실패: {str(e)}"
-        print(f"❌ {error_msg}")
-        result["errors"].append(error_msg)
-        result["step2_ttot"] = {"success": False, "error": error_msg}
-        return result  # TTOT 실패하면 여기서 중단
-    
-    # ====== STEP 3: TTS + DB 저장 ======
-    print("\n3️⃣  TTS 처리 및 DB 저장 중...")
-    
-    if SharedData.ttot_text is None:
-        error_msg = "ttot_text가 비어있습니다"
-        print(f"❌ {error_msg}")
-        result["errors"].append(error_msg)
-        result["step3_tts"] = {"success": False, "error": error_msg}
-        return result
-    
-    # DB 조회 (파라미터로 받은 user_id 또는 ATOT에서 받은 user_id 사용)
-    target_user_id = user_id if user_id else result["step1_atot"].get("user_id")
-    if not target_user_id:
-        error_msg = "User ID를 찾을 수 없습니다"
-        print(f"❌ {error_msg}")
-        result["errors"].append(error_msg)
-        return result
-    
-    # UUID로 사용자 조회
-    user = db.query(UserDB).filter(UserDB.uuid==target_user_id).first()
-    if user is None:
-        error_msg = f"User {target_user_id}를 찾을 수 없습니다"
-        print(f"❌ {error_msg}")
-        result["errors"].append(error_msg)
-        return result
-    
-    # TTS 처리
-    output_filename = None
-    tts_success = False
-    tts_error = None
-    
-    try:
-        # wav_file_data = get_tts.get_tts_audio(SharedData.ttot_text, language='ko')
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            tts_response = await client.post(
-                "http://localhost:8004/generate-speech/",
-                json={"request_text": SharedData.ttot_text},
-                headers={"Content-Type": "application/json"}
-            )
-            tts_response.raise_for_status()
-            wav_file_data = tts_response.content
-        
-        if wav_file_data and len(wav_file_data) > 0:
-            # import time as time_module
-            # output_filename = f"received_audio_{USER_ID}_{int(time_module.time())}.wav"
-            PATH = Path(f"./wav_files/{user.uuid}")
-            if not PATH.exists():
-                os.makedirs(PATH)
-                
-            output_filename = f"{PATH}/received_audio.wav"
-            
-            with open(output_filename, 'wb') as f:
-                f.write(wav_file_data)
-            tts_success = True
-            print(f"✅ TTS 성공: {output_filename}, 크기: {len(wav_file_data)} bytes")
-        else:
-            tts_error = "TTS 서버에서 빈 데이터를 받았습니다"
-            print(f"⚠️ {tts_error}")
-            
-    except httpx.ConnectError as e:
-        tts_error = f"TTS 서버 연결 실패 (port 8004 확인): {str(e)}"
-        print(f"❌ {tts_error}")
-    except httpx.HTTPStatusError as e:
-        tts_error = f"TTS API 오류 (상태: {e.response.status_code})"
-        print(f"❌ {tts_error}")
-    except Exception as e:
-        tts_error = f"TTS 오류: {str(e)}"
-        print(f"❌ {tts_error}")
-    
-    # DB 저장 (TTS 실패해도 저장)
-    if SharedData.input_wav:
-        user.input_wav_list = (user.input_wav_list or []) + [SharedData.input_wav]
-    else:
-        user.input_wav_list = (user.input_wav_list or []) + [None]
-    
-    user.atot_text_list = (user.atot_text_list or []) + [SharedData.atot_text or ""]
-    user.ttot_text_list = (user.ttot_text_list or []) + [SharedData.ttot_text or ""]
-    
-    if output_filename:
-        user.output_wav_list = (user.output_wav_list or []) + [output_filename]
-    else:
-        user.output_wav_list = (user.output_wav_list or []) + [None]
-    
-    db.commit()
-    db.refresh(user)
-    
-    result["step3_tts"] = {
-        "success": tts_success,
-        "output_wav": output_filename,
-        "tts_error": tts_error
-    }
-    
-    result["success"] = True
-    result["user_id"] = target_user_id
-    result["final_data"] = {
-        "input_wav": SharedData.input_wav,
-        "atot_text": SharedData.atot_text,
-        "ttot_text": SharedData.ttot_text,
-        "output_wav": output_filename
-    }
-    
-    print("\n" + "="*60)
-    print("✅ 전체 파이프라인 완료!")
-    print("="*60)
-    
-    return result
-# '''
-
 # 클라이언트에서 호출 순서:
 # 방법 1 (기존): 
 #   1. GET /atot -> 2. GET /ttot -> 3. POST /process-audio
@@ -776,4 +607,16 @@ async def run_full_pipeline(user_id: Optional[str] = None, db: Session=Depends(g
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="127.0.0.1", port=5001)  # 5000 → 5001 (macOS AirPlay 충돌 방지)
+    uvicorn.run("back:app", host="127.0.0.1", port=5001, reload=True)  # 5000 → 5001 (macOS AirPlay 충돌 방지)
+
+'''
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(
+        app, 
+        host="0.0.0.0",              # 외부 접속 허용
+        port=5001,
+        ssl_keyfile="./key.pem",     # 🔑 개인키 파일 경로
+        ssl_certfile="./cert.pem"    # 📜 인증서 파일 경로
+    )
+# '''

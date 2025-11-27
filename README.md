@@ -5,12 +5,12 @@ FastAPI 기반 백엔드 서버 - 마이크로서비스 통합 관리 및 데이
 ## 📌 서버 개요
 
 포트: **5000**  
-실행 명령어: `uvicorn main:app --port 5000`
+실행 명령어: `uvicorn main:app --reload --port 5000`
 
 이 서버는 다음 마이크로서비스들을 통합 관리하는 중앙 백엔드 역할을 합니다:
-- **ATOT 서버** (port 8000): Audio to Text - 음성→텍스트 변환  "/FastApiTest/audiotest_api/judgeTest/judge_server.py"
+- **ATOT 서버** (port 8000): Audio to Text - 음성→텍스트 변환
 - **TTOT 서버** (port 8002): Text to Text - 텍스트 생성/변환
-- **TTS 서버** (port 8004): Text to Speech - 텍스트→음성 변환  # 열 필요 없음
+- **TTS 서버** (port 8004): Text to Speech - 텍스트→음성 변환
 
 ---
 

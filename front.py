@@ -13,9 +13,27 @@ import json
 
 app = FastAPI()
 
+# FRONT_BASE_URL = "http://localhost:3000"
+FRONT_BASE_URL = "https://192.168.0.37:3000"
+# BACK_BASE_URL = "http://localhost:5001"
+BACK_BASE_URL = "http://127.0.0.1:5001"
+# BACK_BASE_URL = "https://192.168.0.37:5001"
+ATOT_BASE_URL = "http://127.0.0.1:8000"
+# ATOT_BASE_URL = "http://localhost:8000"
+# ATOT_BASE_URL = "https://192.168.0.37:8000"
+TTOT_BASE_URL = "http://127.0.0.1:8002"
+# TTOT_BASE_URL = "http://localhost:8002"
+# TTOT_BASE_URL = "https://192.168.0.37:8002"
+TTS_BASE_URL = "http://127.0.0.1:8004"
+# TTS_BASE_URL = "http://localhost:8004"
+# TTS_BASE_URL = "https://192.168.0.37:8004"
+
 origins = [
     "http://localhost",
     "http://localhost:3000",
+    "https://localhost:3000",
+    "https://192.168.0.37",
+    "https://192.168.0.37:3000"
 ]
 
 app.add_middleware(
@@ -65,10 +83,14 @@ class RegisterResponse(BaseModel):
 
 
 # --- 서버 B (텍스트 처리용) ---
-SERVER_B_URL = "http://localhost:5001/process"
+# SERVER_B_URL = "http://localhost:5001/process"
+SERVER_B_URL = "http://127.0.0.1:5001/process"
+# SERVER_B_URL = "http://192.168.0.37:5001/process"
+
 
 # --- 서버 C (오디오 판단 서버) ---
-JUDGE_BASE_URL = "http://127.0.0.1:9000"
+JUDGE_BASE_URL = "http://127.0.0.1:8000"
+# JUDGE_BASE_URL = "http://192.168.0.37:8000"
 JUDGE_START = f"{JUDGE_BASE_URL}/start"
 JUDGE_INGEST_CHUNK = f"{JUDGE_BASE_URL}/ingest-chunk"
 
@@ -124,7 +146,7 @@ async def create_message(payload: MessageCreate):
         async with httpx.AsyncClient(timeout=60.0) as client:
             # back.py의 /run-text-pipeline 호출
             resp = await client.post(
-                "http://localhost:5001/run-text-pipeline",
+                f"{BACK_BASE_URL}/run-text-pipeline",
                 data={
                     "text": payload.text,
                     "user_id": payload.user_id,  # 실제 로그인한 사용자 ID 사용
@@ -256,7 +278,7 @@ async def get_conversation(user_id: str):
     """
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.get(f"http://localhost:5001/api/conversation/{user_id}")
+            resp = await client.get(f"{BACK_BASE_URL}/api/conversation/{user_id}")
 
         if resp.status_code == 200:
             return JSONResponse(resp.json(), status_code=200)
@@ -301,7 +323,6 @@ async def start_audio_session():
         print("❌ 판단 서버 /start 통신 에러:", e)
         return JSONResponse({"error": str(e)}, status_code=500)
 
-
 @app.post("/ingest-chunk")
 async def ingest_chunk(
         sessionId: str = Form(...),
@@ -342,8 +363,20 @@ async def ingest_chunk(
             status_code=500,
         )
 
-
+'''
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run("front_main:app", host="127.0.0.1", port=3000, reload=True)
+    uvicorn.run("front:app", host="127.0.0.1", port=3000, reload=True)
+# '''
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(
+        "front:app", 
+        host="0.0.0.0",              # 외부 접속 허용 (127.0.0.1에서 0.0.0.0으로)
+        port=3000, 
+        reload=True,
+        ssl_keyfile="./key.pem",     # 🔑 개인키 파일 경로
+        ssl_certfile="./cert.pem"    # 📜 인증서 파일 경로
+    )
