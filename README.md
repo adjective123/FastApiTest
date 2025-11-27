@@ -555,9 +555,9 @@ openssl req -x509 -newkey rsa:4096 -nodes -out cert.pem -keyout key.pem -days 36
 
 # 3. 서버 실행 (4개 터미널)
 python front.py          # 터미널 1
-python back.py           # 터미널 2
-cd atot/judgeTest && python main.py  # 터미널 3
-cd ttot && python main.py            # 터미널 4
+uvicorn back:app --port 5001           # 터미널 2
+cd atot/judgeTest && uvicorn main:app --port 8000  # 터미널 3
+cd ttot && uvicorn main:app --port 8002            # 터미널 4
 
 # 4. 브라우저 접속
 # https://192.168.0.37:3000
